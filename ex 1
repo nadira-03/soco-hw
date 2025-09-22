@@ -1,0 +1,20 @@
+import sqlite3
+import pandas as pd
+import os
+
+os.system('clear')
+
+DB_FILE = "database.sqlite"
+try:
+    conn = sqlite3.connect(DB_FILE)
+    print("SQLite Database connection successful")
+except Exception as e:
+    print(f"Uh oh '{e}'")
+
+tablenames_df = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table'", conn)
+print(tablenames_df)
+
+for table in ['users', 'posts', 'comments', 'reactions', 'follows']:
+    print(f'\n\ncontents of {table}')
+    table = pd.read_sql_query(f"SELECT * FROM {table}", conn)
+    print(table.head())
