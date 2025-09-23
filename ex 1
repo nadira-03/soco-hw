@@ -23,23 +23,29 @@ for table in ['users', 'posts', 'comments', 'reactions', 'follows']:
 
 # exercise 1.2
 
+try:
+    lurkers_df = pd.read_sql_query("""
+    SELECT
+        users.id
+    FROM
+        users
+    LEFT JOIN                                        
+        posts 
+    ON users.id = posts.user_id                                                                                                
+    WHERE                                        
+        posts.user_id IS NULL                                                                                                                
+    GROUP BY
+        users.id
+    """, conn)
+    print(f'\n\nUsers with no posts:')
+    print(lurkers_df)
+except Exception as e:
+    print(f"An unexpected error occurred: {e}")
+
 # exercise 1.3
 
-import sqlite3
-import pandas as pd
-import os
-
-os.system('clear')
-
-DB_FILE = "database.sqlite"
 try:
-    conn = sqlite3.connect(DB_FILE)
-    print("SQLite Database connection successful")
-except Exception as e:
-    print(f"Uh oh '{e}'")
-
-try:
-    famous_users_df = pd.read_sql_query("""
+    influencers_df = pd.read_sql_query("""
     SELECT
         posts.id AS post_id,
         posts.user_id,
@@ -63,8 +69,27 @@ try:
     LIMIT 5;
     """, conn)
     print(f'\n\nTop 5 posts with most comments')
-    print(famous_users_df)
+    print(influencers_df)
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
 
 # exercise 1.4
+
+try:
+    spammers_df = pd.read_sql_query("""
+    SELECT
+        user_id,
+        posts.content,
+        COUNT(posts.content) AS repeat                                                                     
+    FROM
+        posts                                                      
+    GROUP BY
+        user_id, posts.content
+    HAVING COUNT(posts.content) >= 3                                    
+    ORDER BY
+        repeat DESC                                                                            
+    """, conn)
+    print(f'\n\nUsers with repeated posts:')
+    print(spammers_df)
+except Exception as e:
+    print(f"An unexpected error occurred: {e}")
