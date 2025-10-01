@@ -1,1 +1,153 @@
+import sqlite3
 
+import pandas
+
+import matplotlib.pyplot as plt
+
+import os
+os.system('clear')
+
+DB_FILE = "database.sqlite"
+try:
+    conn = sqlite3.connect(DB_FILE)
+    
+    # Use pandas as a quick way to load SQLite data into dataframes
+    users = pandas.read_sql_query("SELECT * FROM users", conn)
+    posts = pandas.read_sql_query("SELECT * FROM posts", conn)
+    comments = pandas.read_sql_query("SELECT * FROM comments", conn)
+    reactions = pandas.read_sql_query("SELECT * FROM reactions", conn)
+    
+    # Let's make sure our data is okay by quickly inspecting all the tables
+    print(users)
+    print(posts)
+    print(comments)
+    print(reactions)
+
+except Exception as e:
+    print(f"Uh oh '{e}'")
+finally:
+    if conn:
+        conn.close()
+        print("SQLite Database connection closed.")
+
+posts['created_at'] = pandas.to_datetime(posts['created_at'])
+
+# Exercise 2.2
+
+reaction_counts = reactions.groupby(
+    'post_id'
+).size().reset_index(name='reaction_count')
+comment_counts = comments.groupby(
+    'post_id'
+).size().reset_index(name='comment_count')
+
+engagement = posts[['id', 'created_at']].merge(
+    reaction_counts,
+    left_on='id',
+    right_on='post_id'
+)
+engagement = engagement.merge(
+    comment_counts,
+    left_on='id',
+    right_on='post_id'
+)
+
+engagement['reaction_count'] = engagement['reaction_count'].fillna(0)
+engagement['comment_count'] = engagement['comment_count'].fillna(0)
+engagement['total_engagement'] = engagement['reaction_count'] + engagement['comment_count']
+
+today = pandas.Timestamp.now()
+engagement['days_since_post'] = (today - posts['created_at']).dt.days
+engagement['days_since_post'] = engagement['days_since_post'].replace(0, 1)
+
+engagement['virality'] = engagement['total_engagement'] / engagement['days_since_post']
+
+top_3_viral = engagement.sort_values('virality', ascending=False).head(3)
+print(top_3_viral[['id', 'total_engagement', 'days_since_post', 'virality']])
+
+
+#Exercise 2.3
+
+posts['created_at'] = pandas.to_datetime(posts['created_at'])
+comments['created_at'] = pandas.to_datetime(comments['created_at'])
+
+first_comment = comments.groupby(
+    'post_id'
+)['created_at'].min().reset_index()
+first_comment = first_comment.rename(
+    columns={'created_at': 'first_comment_time'}
+)
+
+last_comment = comments.groupby(
+    'post_id'
+)['created_at'].max().reset_index()
+last_comment = last_comment.rename(
+    columns={'created_at': 'last_comment_time'}
+)
+
+posts_times = posts[['id', 'created_at']].rename(
+    columns={'id': 'post_id', 'created_at': 'post_time'}
+)
+post_with_first_comment = posts_times.merge(
+    first_comment,
+    on='post_id'
+)
+post_with_last_comment = posts_times.merge(
+    last_comment,
+    on='post_id'
+)
+
+post_with_first_comment['time_to_first_comment'] = (
+    post_with_first_comment['first_comment_time'] - post_with_first_comment['post_time']
+)
+post_with_last_comment['time_to_last_comment'] = (
+    post_with_last_comment['last_comment_time'] - post_with_last_comment['post_time']
+)
+
+average_delay1 = post_with_first_comment['time_to_first_comment'].mean()
+average_delay2 = post_with_last_comment['time_to_last_comment'].mean()
+print("Average time to first comment:", average_delay1)
+print("Average time to last comment:", average_delay2)
+
+Exercise 2.4
+
+reactions_with_posters = reactions.merge(
+    posts[['id', 'user_id']],
+    left_on='post_id', right_on='id',
+    suffixes=('_reactor', '_poster')
+)
+
+reactions_with_posters = reactions_with_posters[
+    reactions_with_posters['user_id_reactor'] != reactions_with_posters['user_id_poster']
+]
+
+reaction_pairs = reactions_with_posters.groupby(
+    ['user_id_reactor', 'user_id_poster']
+).size().reset_index(name='reaction_count')
+
+comments_with_posters = comments.merge(
+    posts[['id', 'user_id']],
+    left_on='post_id', right_on='id',
+    suffixes=('_commenter', '_poster')
+)
+
+comments_with_posters = comments_with_posters[
+    comments_with_posters['user_id_commenter'] != comments_with_posters['user_id_poster']
+]
+
+comment_pairs = comments_with_posters.groupby(
+    ['user_id_commenter', 'user_id_poster']
+).size().reset_index(name='comment_count')
+
+engagement_pairs = reaction_pairs.merge(
+    comment_pairs,
+    left_on=['user_id_reactor', 'user_id_poster'],
+    right_on=['user_id_commenter', 'user_id_poster']
+)
+
+engagement_pairs['engager'] = engagement_pairs['user_id_reactor'].fillna(engagement_pairs['user_id_commenter'])
+engagement_pairs['poster']  = engagement_pairs['user_id_poster']
+engagement_pairs['total_engagement'] = engagement_pairs['reaction_count'] + engagement_pairs['comment_count']
+
+top_3_pairs = engagement_pairs.sort_values('total_engagement', ascending=False).head(3)
+print(top_3_pairs[['engager', 'poster', 'total_engagement']])
