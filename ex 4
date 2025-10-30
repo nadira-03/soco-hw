@@ -1,4 +1,5 @@
- 
+# 4.1
+
 def analyze_topics(): 
 
   import nltk
@@ -43,8 +44,74 @@ def analyze_topics():
   for bow in corpus: 
     topic_probs = lda_model.get_document_topics(bow) 
     dominant_topic = max(topic_probs, key=lambda x: x[1])[0] if topic_probs else None 
-    post_topics.append(dominant_topic) 
+    post_topics.append(dominant_topic)
 
-  for i, count in enumerate(topic_counts): 
-    print(f"Topic {i}: {count} posts") 
+# 4.2
+
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from collections import defaultdict
+
+def analyze_platform_sentiment(lda_model, dictionary, query_db):
+ sia = SentimentIntensityAnalyzer()
+
+ posts = query_db("SELECT id, user_id, content FROM posts") 
+ comments = query_db("SELECT id, user_id, content FROM comments")
+ 
+ for item in posts + comments:
+  text = item.get('content', '') 
+  item['sentiment'] = sia.polarity_scores(text)['compound'] 
+
+ all_scores = [item['sentiment'] for item in posts + comments] 
+ overall_sentiment = sum(all_scores) / len(all_scores) if all_scores else 0 
+
+ for i, count in enumerate(topic_counts): 
+  print(f"Topic {i}: {count} posts")
+
+
+# 4.4
+
+# Python
+
+def get_reaction_count(post_id): 
+
+ result = query_db("SELECT COUNT(*) as count FROM reactions WHERE post_id = ?", (post_id,), one=True)
+ return result['count'] if result else 0
+
+def get_post_badge(reaction_count, created_at): 
+ 
+ now = datetime.utcnow()
+ age_days = (now - created_at).days
+ if reaction_count >= 10 and age_days <= 7: 
+  return "✨ Trending" 
+ elif reaction_count >= 50: 
+  return "🔥 Popular" 
+ elif reaction_count >= 25: 
+  return "⭐ Favourite" 
+ elif reaction_count >= 12: 
+  return "📈 Rising" 
+ else: 
+     return None
+
+# inside def feed():
+
+post = dict(post) 
+ 
+ post_id = post['id'] 
+ created_at = post['created_at'] 
+ 
+ reaction_count = get_reaction_count(post_id) 
+ badge = get_post_badge(reaction_count, created_at) 
+ 
+ post['badge'] = badge
+
+
+# HTML
+
+{% if entry.post.badge %}
+          <span class="badge bg-warning text-dark ms-2">
+              {{ entry.post.badge }}
+          </span>
+{% endif %} 
+
  
