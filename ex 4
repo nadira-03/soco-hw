@@ -1,0 +1,50 @@
+ 
+def analyze_topics(): 
+
+  import nltk
+  from nltk.corpus import stopwords
+  from nltk.tokenize import word_tokenize
+  from nltk.stem import WordNetLemmatizer
+  from gensim.corpora import Dictionary
+  from gensim.models.ldamodel import LdaModel
+  from gensim.models.coherencemodel import CoherenceModel
+  from collections import Counter 
+  nltk.download('punkt') 
+  nltk.download('stopwords') 
+  nltk.download('wordnet') 
+  
+  stop_words = set(stopwords.words('english')) 
+  stop_words.extend(['would', 'best', 'always', 'amazing', 'bought', 'quick' 'people', 'new', 'fun', 'think', 'know', 'believe', 'many', 'thing', 'need', 'small', 'even', 'make', 'love', 'mean', 'fact', 'question', 'time', 'reason', 'also', 'could', 'true', 'well',  'life', 'said', 'year', 'going', 'good', 'really', 'much', 'want', 'back', 'look', 'article', 'host', 'university', 'reply', 'thanks', 'mail', 'post', 'please']) 
+  lemmatizer = WordNetLemmatizer()
+   
+  all_posts = query_db("SELECT content FROM posts")
+ 
+  bow_list = []
+  for post in all_posts: 
+      text = post.get('content', '')  
+      tokens = word_tokenize(text.lower()) # get the lower case words 
+      tokens = [lemmatizer.lemmatize(t) for t in tokens if t.isalpha() and t not in stop_words] #lemmatise the words and filter out stop words 
+      tokens = [t for t in tokens if len(t) > 2]  # filter out words with less than 3 letter s 
+      if tokens: 
+          bow_list.append(tokens) 
+  if not bow_list: 
+      print("No posts to analyse") 
+      return 
+  dictionary = Dictionary(bow_list) 
+  dictionary.filter_extremes(no_below=2, no_above=0.3) 
+  corpus = [dictionary.doc2bow(tokens) for tokens in bow_list] 
+ 
+  lda_model = LdaModel(corpus, num_topics=10, id2word=dictionary, passes=10, random_state=2) 
+    print("Top 10 Topics:") 
+  for i, topic in lda_model.print_topics(num_words=6): 
+    print(f"Topic {i}: {topic}")
+ 
+  post_topics = [] 
+  for bow in corpus: 
+    topic_probs = lda_model.get_document_topics(bow) 
+    dominant_topic = max(topic_probs, key=lambda x: x[1])[0] if topic_probs else None 
+    post_topics.append(dominant_topic) 
+
+  for i, count in enumerate(topic_counts): 
+    print(f"Topic {i}: {count} posts") 
+ 
